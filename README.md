@@ -1,35 +1,41 @@
-добавить api ключ в .env
+## Project setup
 
-установка
-
-```
-yarn
+```bash
+yarn install
 ```
 
-запуск
+## To run local
 
-```
-yarn dev
-```
+1. Create .env file in root
 
-1 Пост запрос на
+2. run docker with db
 
-http://localhost:3000/openai/message
-
-body:
-
-```
-{
-"message": "хочу вернуть заказ"
-}
+```bash
+docker-compose -f dev-docker-compose.yml up --build -d
 ```
 
-если просит дать номер заказа
-сокпировать thread_id из ответа и послать запрос с body
+3. do migration
 
+```bash
+npx prisma migrate deploy
 ```
-{
-  "message": "1234 123",
-  "threadId": "thread_H1Bvm5fNWl9eu5IQH3iJwtNH"
-}
+
+## Prisma
+
+dev migration
+
+```bash
+npx prisma migrate dev --name init
+```
+
+production migration
+
+```bash
+npx prisma migrate deploy
+```
+
+update prisma schema
+
+```bash
+npx prisma generate
 ```

@@ -1,8 +1,9 @@
 import { Module } from '@nestjs/common';
 import { OpenaiModule } from './openai/openai.module';
+import { PrismaModule } from './prisma/prisma.module';
 
 @Module({
-  imports: [OpenaiModule],
+  imports: [OpenaiModule, PrismaModule],
   controllers: [],
   providers: [],
 })
