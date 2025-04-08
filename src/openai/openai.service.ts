@@ -39,19 +39,17 @@ export class OpenaiService {
       console.log(toolCalls);
 
       return {
-        response: {
-          threadId: currentThreadId,
-          message: {
-            content: [
-              {
-                text: {
-                  value:
-                    'Функция transferToManager была вызвана с аргументами: ' +
-                    JSON.stringify(toolCalls),
-                },
+        threadId: currentThreadId,
+        message: {
+          content: [
+            {
+              text: {
+                value:
+                  'Функция transferToManager была вызвана с аргументами: ' +
+                  JSON.stringify(toolCalls),
               },
-            ],
-          },
+            },
+          ],
         },
       };
 
