@@ -1,12 +1,13 @@
 import { Injectable } from '@nestjs/common';
 import OpenAI from 'openai';
+import { PrismaService } from 'src/prisma/prisma.service';
 
 @Injectable()
 export class OpenaiService {
   private readonly openai: OpenAI;
   private readonly assistantId = process.env.OPENAI_ASSISTANT_ID;
 
-  constructor() {
+  constructor(private readonly prisma: PrismaService) {
     this.openai = new OpenAI({
       apiKey: process.env.OPENAI_API_KEY,
     });
@@ -37,6 +38,16 @@ export class OpenaiService {
       const toolCalls = run.required_action.submit_tool_outputs.tool_calls;
 
       console.log(toolCalls);
+
+      await this.prisma.message.create({
+        data: {
+          id: toolCalls[0].id,
+          threadId: currentThreadId,
+          content:
+            'Функция transferToManager была вызвана с аргументами: ' +
+            JSON.stringify(toolCalls),
+        },
+      });
 
       return {
         threadId: currentThreadId,
@@ -101,6 +112,20 @@ export class OpenaiService {
       currentThreadId,
       lastAssistantMessageId,
     );
+
+    const firstContent = assistantMessage.content[0];
+    let contentValue = 'Нет текстового содержимого';
+    if ('text' in firstContent) {
+      contentValue = firstContent.text.value; // Безопасный доступ к text
+    }
+
+    await this.prisma.message.create({
+      data: {
+        id: assistantMessage.id,
+        threadId: currentThreadId,
+        content: contentValue,
+      },
+    });
 
     return {
       message: assistantMessage,

@@ -11,12 +11,6 @@ export class OpenaiController {
   ) {
     const { message, threadId } = body;
 
-    const response = await this.openaiService.sendMessageToAssistant(
-      message,
-      threadId,
-    );
-    return {
-      response,
-    };
+    return this.openaiService.sendMessageToAssistant(message, threadId);
   }
 }
