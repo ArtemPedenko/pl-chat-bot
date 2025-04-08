@@ -16,56 +16,49 @@ export class OpenaiService {
     let currentThreadId = threadId;
     if (!currentThreadId) {
       const thread = await this.openai.beta.threads.create();
-
       currentThreadId = thread.id;
     }
 
-    const createThreat = await this.openai.beta.threads.messages.create(
-      currentThreadId,
-      {
-        role: 'user',
-        content: message,
-      },
-      { stream: false },
-    );
-
-    if (!createThreat) {
-      throw new Error('Не удалось отправить сообщение');
-    }
-
-    const run = await this.openai.beta.threads.runs.create(currentThreadId, {
-      assistant_id: this.assistantId,
-      stream: false,
+    await this.openai.beta.threads.messages.create(currentThreadId, {
+      role: 'user',
+      content: message,
     });
 
-    let runStatus = await this.openai.beta.threads.runs.retrieve(
+    // Use createAndPoll to handle waiting for completion
+    const run = await this.openai.beta.threads.runs.createAndPoll(
       currentThreadId,
-      run.id,
+      {
+        assistant_id: this.assistantId,
+      },
     );
 
-    while (
-      runStatus.status !== 'completed' &&
-      runStatus.status !== 'requires_action'
-    ) {
-      await new Promise((resolve) => setTimeout(resolve, 1000));
-      runStatus = await this.openai.beta.threads.runs.retrieve(
-        currentThreadId,
-        run.id,
-      );
-    }
-
-    // Обработка вызова функции
-    if (runStatus.status === 'requires_action') {
-      const toolCalls =
-        runStatus.required_action.submit_tool_outputs.tool_calls;
+    // Handle function calls if needed
+    if (run.status === 'requires_action') {
+      const toolCalls = run.required_action.submit_tool_outputs.tool_calls;
 
       console.log(toolCalls);
+
+      return {
+        response: {
+          threadId: currentThreadId,
+          message: {
+            content: [
+              {
+                text: {
+                  value:
+                    'Функция transferToManager была вызвана с аргументами: ' +
+                    JSON.stringify(toolCalls),
+                },
+              },
+            ],
+          },
+        },
+      };
 
       const toolOutputs = await Promise.all(
         toolCalls.map(async (toolCall) => {
           if (toolCall.function.name === 'transferToManager') {
             const args = JSON.parse(toolCall.function.arguments);
-            // Здесь вы можете обработать параметры функции
             const result = await this.transferToManager(args);
 
             return {
@@ -80,43 +73,41 @@ export class OpenaiService {
         }),
       );
 
-      // Отправляем результат выполнения функции обратно
-      await this.openai.beta.threads.runs.submitToolOutputs(
+      // Use submitToolOutputsAndPoll to handle waiting after submitting tool outputs
+      await this.openai.beta.threads.runs.submitToolOutputsAndPoll(
         currentThreadId,
         run.id,
         { tool_outputs: toolOutputs },
       );
-
-      // Продолжаем проверять статус после отправки результатов
-      runStatus = await this.openai.beta.threads.runs.retrieve(
-        currentThreadId,
-        run.id,
-      );
-      while (runStatus.status !== 'completed') {
-        await new Promise((resolve) => setTimeout(resolve, 1000));
-        runStatus = await this.openai.beta.threads.runs.retrieve(
-          currentThreadId,
-          run.id,
-        );
-      }
     }
 
-    const messages =
-      await this.openai.beta.threads.messages.list(currentThreadId);
+    const messagesList = await this.openai.beta.threads.messages.list(
+      currentThreadId,
+      {
+        limit: 1, // Запрашиваем только одно сообщение
+        order: 'desc', // В порядке убывания (самое новое первым)
+      },
+    );
 
-    console.log(messages);
+    // Находим ID последнего сообщения от ассистента
+    const lastAssistantMessageId = messagesList.data.find(
+      (msg) => msg.role === 'assistant',
+    )?.id;
 
-    return messages;
+    if (!lastAssistantMessageId) {
+      throw new Error('Не удалось получить ответ от ассистента');
+    }
 
-    const assistantMessages = messages.data
-      .filter((msg) => msg.role === 'assistant')
-      .sort((a, b) => b.created_at - a.created_at);
+    // Получаем полное сообщение по ID
+    const assistantMessage = await this.openai.beta.threads.messages.retrieve(
+      currentThreadId,
+      lastAssistantMessageId,
+    );
 
     return {
-      messages: assistantMessages,
+      message: assistantMessage,
       threadId: currentThreadId,
-      functionCall:
-        runStatus.status === 'completed' && assistantMessages.length > 0,
+      functionCall: run.status === 'completed',
     };
   }
 
