@@ -20,6 +20,15 @@ export class OpenaiService {
       },
     });
 
+    const messagesList1 = await this.openai.beta.threads.messages.list(
+      thread.threadId,
+      {
+        order: 'desc',
+      },
+    );
+
+    return messagesList1;
+
     // Если трэд не найден, создаем новый
     if (!thread) {
       const newThread = await this.openai.beta.threads.create();
@@ -63,6 +72,16 @@ export class OpenaiService {
         },
       });
 
+      // Отменяем текущий run
+      await this.openai.beta.threads.runs.cancel(thread.threadId, run.id);
+
+      // todo обработка функциий. сейчас просто возвращаем сообщение, что функция была вызвана
+      return {
+        id: toolCalls[0].id,
+        threadId: thread.threadId,
+        message: 'Чат переведен на менеджера',
+      };
+
       const toolOutputs = await Promise.all(
         toolCalls.map(async (toolCall) => {
           if (toolCall.function.name === 'transferToManager') {
@@ -87,19 +106,12 @@ export class OpenaiService {
         run.id,
         { tool_outputs: toolOutputs },
       );
-
-      return {
-        id: toolCalls[0].id,
-        threadId: thread.threadId,
-        message: 'Чат переведен на менеджера',
-      };
     }
 
     const messagesList = await this.openai.beta.threads.messages.list(
       thread.threadId,
       {
-        limit: 1, // Запрашиваем только одно сообщение
-        order: 'desc', // В порядке убывания (самое новое первым)
+        order: 'desc',
       },
     );
 
