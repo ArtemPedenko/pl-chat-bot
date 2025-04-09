@@ -50,18 +50,9 @@ export class OpenaiService {
       });
 
       return {
+        id: toolCalls[0].id,
         threadId: currentThreadId,
-        message: {
-          content: [
-            {
-              text: {
-                value:
-                  'Функция transferToManager была вызвана с аргументами: ' +
-                  JSON.stringify(toolCalls),
-              },
-            },
-          ],
-        },
+        message: 'Чат переведен на менеджера',
       };
 
       const toolOutputs = await Promise.all(
@@ -116,7 +107,10 @@ export class OpenaiService {
     const firstContent = assistantMessage.content[0];
     let contentValue = 'Нет текстового содержимого';
     if ('text' in firstContent) {
-      contentValue = firstContent.text.value; // Безопасный доступ к text
+      contentValue = firstContent.text.value.replace(
+        /\[[^\]]*\]|\【[^】]*\】/g,
+        '',
+      );
     }
 
     await this.prisma.message.create({
@@ -128,9 +122,8 @@ export class OpenaiService {
     });
 
     return {
-      message: assistantMessage,
+      message: contentValue,
       threadId: currentThreadId,
-      functionCall: run.status === 'completed',
     };
   }
 
