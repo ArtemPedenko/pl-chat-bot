@@ -13,21 +13,37 @@ export class OpenaiService {
     });
   }
 
-  async sendMessageToAssistant(message: string, threadId?: string) {
-    let currentThreadId = threadId;
-    if (!currentThreadId) {
-      const thread = await this.openai.beta.threads.create();
-      currentThreadId = thread.id;
+  async sendMessageToAssistant(message: string, id: string) {
+    let thread = await this.prisma.thread.findUnique({
+      where: {
+        id: id,
+      },
+    });
+
+    // Если трэд не найден, создаем новый
+    if (!thread) {
+      const newThread = await this.openai.beta.threads.create();
+
+      if (!newThread) {
+        throw new Error('Не удалось создать новый трэд');
+      }
+
+      thread = await this.prisma.thread.create({
+        data: {
+          id: id,
+          threadId: newThread.id,
+        },
+      });
     }
 
-    await this.openai.beta.threads.messages.create(currentThreadId, {
+    await this.openai.beta.threads.messages.create(thread.threadId, {
       role: 'user',
       content: message,
     });
 
     // Use createAndPoll to handle waiting for completion
     const run = await this.openai.beta.threads.runs.createAndPoll(
-      currentThreadId,
+      thread.threadId,
       {
         assistant_id: this.assistantId,
       },
@@ -37,23 +53,15 @@ export class OpenaiService {
     if (run.status === 'requires_action') {
       const toolCalls = run.required_action.submit_tool_outputs.tool_calls;
 
-      console.log(toolCalls);
-
       await this.prisma.message.create({
         data: {
           id: toolCalls[0].id,
-          threadId: currentThreadId,
+          threadId: thread.threadId,
           content:
             'Функция transferToManager была вызвана с аргументами: ' +
             JSON.stringify(toolCalls),
         },
       });
-
-      return {
-        id: toolCalls[0].id,
-        threadId: currentThreadId,
-        message: 'Чат переведен на менеджера',
-      };
 
       const toolOutputs = await Promise.all(
         toolCalls.map(async (toolCall) => {
@@ -75,14 +83,20 @@ export class OpenaiService {
 
       // Use submitToolOutputsAndPoll to handle waiting after submitting tool outputs
       await this.openai.beta.threads.runs.submitToolOutputsAndPoll(
-        currentThreadId,
+        thread.threadId,
         run.id,
         { tool_outputs: toolOutputs },
       );
+
+      return {
+        id: toolCalls[0].id,
+        threadId: thread.threadId,
+        message: 'Чат переведен на менеджера',
+      };
     }
 
     const messagesList = await this.openai.beta.threads.messages.list(
-      currentThreadId,
+      thread.threadId,
       {
         limit: 1, // Запрашиваем только одно сообщение
         order: 'desc', // В порядке убывания (самое новое первым)
@@ -100,11 +114,11 @@ export class OpenaiService {
 
     // Получаем полное сообщение по ID
     const assistantMessage = await this.openai.beta.threads.messages.retrieve(
-      currentThreadId,
+      thread.threadId,
       lastAssistantMessageId,
     );
 
-    const firstContent = assistantMessage.content[0];
+    const firstContent: any = assistantMessage.content[0];
     let contentValue = 'Нет текстового содержимого';
     if ('text' in firstContent) {
       contentValue = firstContent.text.value.replace(
@@ -116,14 +130,14 @@ export class OpenaiService {
     await this.prisma.message.create({
       data: {
         id: assistantMessage.id,
-        threadId: currentThreadId,
+        threadId: thread.threadId,
         content: contentValue,
       },
     });
 
     return {
       message: contentValue,
-      threadId: currentThreadId,
+      threadId: thread.threadId,
     };
   }
 
