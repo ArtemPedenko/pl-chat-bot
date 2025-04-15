@@ -20,15 +20,6 @@ export class OpenaiService {
       },
     });
 
-    const messagesList1 = await this.openai.beta.threads.messages.list(
-      thread.threadId,
-      {
-        order: 'desc',
-      },
-    );
-
-    return messagesList1;
-
     // Если трэд не найден, создаем новый
     if (!thread) {
       const newThread = await this.openai.beta.threads.create();
@@ -55,6 +46,10 @@ export class OpenaiService {
       thread.threadId,
       {
         assistant_id: this.assistantId,
+        truncation_strategy: {
+          type: 'last_messages',
+          last_messages: 10,
+        },
       },
     );
 
