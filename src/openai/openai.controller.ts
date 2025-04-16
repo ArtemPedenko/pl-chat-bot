@@ -6,7 +6,7 @@ export class OpenaiController {
   constructor(private readonly openaiService: OpenaiService) {}
 
   @Post('message')
-  async sendMessage(@Body() body: { message: string; id?: string }) {
+  async sendMessage(@Body() body: { message: string; id?: string | number }) {
     const { message, id } = body;
 
     return this.openaiService.sendMessageToAssistant(message, id);

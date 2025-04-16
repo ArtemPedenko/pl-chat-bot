@@ -13,10 +13,10 @@ export class OpenaiService {
     });
   }
 
-  async sendMessageToAssistant(message: string, id: string) {
+  async sendMessageToAssistant(message: string, id: string | number) {
     let thread = await this.prisma.thread.findUnique({
       where: {
-        id: id,
+        id: String(id),
       },
     });
 
@@ -30,7 +30,7 @@ export class OpenaiService {
 
       thread = await this.prisma.thread.create({
         data: {
-          id: id,
+          id: String(id),
           threadId: newThread.id,
         },
       });
@@ -64,6 +64,7 @@ export class OpenaiService {
           content:
             'Функция transferToManager была вызвана с аргументами: ' +
             JSON.stringify(toolCalls),
+          question: message,
         },
       });
 
@@ -139,6 +140,7 @@ export class OpenaiService {
         id: assistantMessage.id,
         threadId: thread.threadId,
         content: contentValue,
+        question: message,
       },
     });
 
@@ -148,7 +150,7 @@ export class OpenaiService {
     };
   }
 
-  // Пример обработчика функции
+  // Пример обработчика функции 739631183
   private async transferToManager(args: any) {
     return {
       success: true,
