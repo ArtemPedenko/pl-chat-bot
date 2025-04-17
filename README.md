@@ -39,3 +39,5 @@ update prisma schema
 ```bash
 npx prisma generate
 ```
+
+Swagger in http://localhost:4000/api after running application
