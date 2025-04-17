@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import OpenAI from 'openai';
 import { PrismaService } from 'src/prisma/prisma.service';
+import { MessageDto } from './dto/message.dto';
 
 @Injectable()
 export class OpenaiService {
@@ -13,10 +14,12 @@ export class OpenaiService {
     });
   }
 
-  async sendMessageToAssistant(message: string, id: string | number) {
+  async sendMessageToAssistant(body: MessageDto) {
+    const { message, id } = body;
+
     let thread = await this.prisma.thread.findUnique({
       where: {
-        id: String(id),
+        id: id,
       },
     });
 
@@ -30,7 +33,7 @@ export class OpenaiService {
 
       thread = await this.prisma.thread.create({
         data: {
-          id: String(id),
+          id: id,
           threadId: newThread.id,
         },
       });
